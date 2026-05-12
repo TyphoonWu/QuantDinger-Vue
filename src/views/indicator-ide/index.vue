@@ -750,6 +750,63 @@
                                 </a-tooltip>
                               </button>
                             </div>
+                            <div class="ide-tune-dimensions">
+                              <div class="ide-tune-dimensions-summary">
+                                <span class="ide-tune-dimensions-summary-label">
+                                  <a-icon type="appstore" />
+                                  {{ $t('indicatorIde.sweepDimensionsTitle') }}
+                                </span>
+                                <span class="ide-tune-dimensions-summary-stats">
+                                  <span class="ide-tune-dim-stat">
+                                    <span class="ide-tune-dim-stat-num">{{ experimentEnabledSweepDimensions.length }}</span>
+                                    <span class="ide-tune-dim-stat-sep">/</span>
+                                    <span class="ide-tune-dim-stat-total">{{ experimentSweepDimensions.length }}</span>
+                                    <span class="ide-tune-dim-stat-cap">{{ $t('indicatorIde.sweepDimEnabledLabel') }}</span>
+                                  </span>
+                                  <span class="ide-tune-dim-stat ide-tune-dim-stat--cartesian">
+                                    <span class="ide-tune-dim-stat-cap">{{ $t('indicatorIde.sweepCartesianLabel') }}</span>
+                                    <span class="ide-tune-dim-stat-num">{{ experimentCartesianSize === Infinity ? '∞' : experimentCartesianSize.toLocaleString() }}</span>
+                                  </span>
+                                  <span class="ide-tune-dim-stat ide-tune-dim-stat--budget">
+                                    <span class="ide-tune-dim-stat-cap">{{ $t('indicatorIde.sweepBudgetLabel') }}</span>
+                                    <span class="ide-tune-dim-stat-num">48</span>
+                                  </span>
+                                </span>
+                              </div>
+                              <div v-if="experimentMethodAutoSuggest" class="ide-tune-dimensions-warning">
+                                <a-icon type="info-circle" />
+                                {{ $t('indicatorIde.sweepMethodAutoSwitchHint', { size: experimentMethodAutoSuggest.size.toLocaleString() }) }}
+                              </div>
+                              <div v-if="experimentSweepDimensions.length === 0" class="ide-tune-dimensions-empty">
+                                {{ $t('indicatorIde.sweepDimensionsEmpty') }}
+                              </div>
+                              <div v-else class="ide-tune-dimensions-list">
+                                <label
+                                  v-for="d in experimentSweepDimensions"
+                                  :key="d.key"
+                                  class="ide-tune-dim-row"
+                                  :class="['ide-tune-dim-row--' + d.source, { 'is-disabled': !d.enabled }]"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    class="ide-tune-dim-check"
+                                    :checked="d.enabled"
+                                    :disabled="experimentRunning"
+                                    @change="toggleSweepDimension(d.key)"
+                                  >
+                                  <span class="ide-tune-dim-label">{{ d.label }}</span>
+                                  <span class="ide-tune-dim-badge" :class="'ide-tune-dim-badge--' + d.source">
+                                    {{ $t('indicatorIde.sweepSource_' + d.source) }}
+                                  </span>
+                                  <span class="ide-tune-dim-count">×{{ d.values.length }}</span>
+                                  <span class="ide-tune-dim-values">{{ formatSweepValues(d.values) }}</span>
+                                </label>
+                              </div>
+                              <div class="ide-tune-dimensions-tip">
+                                <a-icon type="bulb" />
+                                <span v-html="$t('indicatorIde.sweepDimensionsTip')"></span>
+                              </div>
+                            </div>
                             <div class="ide-tune-method-meta">
                               <span class="ide-tune-method-meta-hint">{{ activeTuneMethodOption ? activeTuneMethodOption.hint : '' }}</span>
                               <a-button
@@ -891,34 +948,99 @@
                         </div>
 
                         <!-- Best candidate card -->
-                        <div v-if="experimentBest" class="experiment-best-card">
+                        <div
+                          v-if="experimentBest"
+                          class="experiment-best-card"
+                          :class="{ 'is-overfit': experimentBestOverfit }">
                           <div class="experiment-section-title">
                             <a-icon type="trophy" style="margin-right: 6px;" />
                             {{ $t('indicatorIde.bestStrategyOutput') }}
                             <span v-if="experimentBest.name" style="font-weight: 400; margin-left: 8px; font-size: 12px; opacity: 0.65;">{{ experimentBest.name }}</span>
                           </div>
                           <div v-if="experimentBest.reasoning" class="experiment-reasoning">{{ experimentBest.reasoning }}</div>
-                          <div class="experiment-best-summary">
-                            <div class="experiment-best-metric">
-                              <span>{{ $t('indicatorIde.totalReturn') }}</span>
-                              <strong>{{ experimentBestSummary.totalReturn }}</strong>
+                          <a-alert
+                            v-if="experimentBestOverfit"
+                            type="error"
+                            show-icon
+                            style="margin-bottom: 10px;"
+                            :message="$t('indicatorIde.oosOverfitWarning', { degrade: experimentBestDegradePct })" />
+                          <div class="experiment-best-dual">
+                            <div class="experiment-best-panel">
+                              <div class="experiment-best-panel-header">
+                                <a-tag color="blue">{{ $t('indicatorIde.isBadge') }}</a-tag>
+                                <span class="experiment-best-panel-title">{{ $t('indicatorIde.isPanelTitle') }}</span>
+                              </div>
+                              <div class="experiment-best-summary">
+                                <div class="experiment-best-metric">
+                                  <span>{{ $t('indicatorIde.totalReturn') }}</span>
+                                  <strong>{{ experimentBestSummary.totalReturn }}</strong>
+                                </div>
+                                <div class="experiment-best-metric">
+                                  <span>{{ $t('indicatorIde.maxDrawdown') }}</span>
+                                  <strong>{{ experimentBestSummary.maxDrawdown }}</strong>
+                                </div>
+                                <div class="experiment-best-metric">
+                                  <span>{{ $t('indicatorIde.sharpeRatio') }}</span>
+                                  <strong>{{ experimentBestSummary.sharpeRatio }}</strong>
+                                </div>
+                                <div class="experiment-best-metric">
+                                  <span>{{ $t('indicatorIde.tradeCount') }}</span>
+                                  <strong>{{ experimentBestSummary.totalTrades }}</strong>
+                                </div>
+                              </div>
                             </div>
-                            <div class="experiment-best-metric">
-                              <span>{{ $t('indicatorIde.maxDrawdown') }}</span>
-                              <strong>{{ experimentBestSummary.maxDrawdown }}</strong>
-                            </div>
-                            <div class="experiment-best-metric">
-                              <span>{{ $t('indicatorIde.sharpeRatio') }}</span>
-                              <strong>{{ experimentBestSummary.sharpeRatio }}</strong>
-                            </div>
-                            <div class="experiment-best-metric">
-                              <span>{{ $t('indicatorIde.tradeCount') }}</span>
-                              <strong>{{ experimentBestSummary.totalTrades }}</strong>
+                            <div
+                              class="experiment-best-panel"
+                              :class="{ 'panel-overfit': experimentBestOverfit, 'panel-disabled': !experimentBestOosSummary }">
+                              <div class="experiment-best-panel-header">
+                                <a-tag :color="experimentBestOverfit ? 'red' : 'orange'">{{ $t('indicatorIde.oosBadge') }}</a-tag>
+                                <span class="experiment-best-panel-title">{{ $t('indicatorIde.oosPanelTitle') }}</span>
+                                <span v-if="experimentBest.oosDegradation != null" class="experiment-best-degrade">
+                                  {{ $t('indicatorIde.oosDegradation') }} {{ experimentBestDegradePct }}%
+                                </span>
+                              </div>
+                              <div v-if="experimentBestOosSummary" class="experiment-best-summary">
+                                <div class="experiment-best-metric">
+                                  <span>{{ $t('indicatorIde.totalReturn') }}</span>
+                                  <strong>{{ experimentBestOosSummary.totalReturn }}</strong>
+                                </div>
+                                <div class="experiment-best-metric">
+                                  <span>{{ $t('indicatorIde.maxDrawdown') }}</span>
+                                  <strong>{{ experimentBestOosSummary.maxDrawdown }}</strong>
+                                </div>
+                                <div class="experiment-best-metric">
+                                  <span>{{ $t('indicatorIde.sharpeRatio') }}</span>
+                                  <strong>{{ experimentBestOosSummary.sharpeRatio }}</strong>
+                                </div>
+                                <div class="experiment-best-metric">
+                                  <span>{{ $t('indicatorIde.tradeCount') }}</span>
+                                  <strong>{{ experimentBestOosSummary.totalTrades }}</strong>
+                                </div>
+                              </div>
+                              <div v-else class="experiment-best-oos-na">
+                                {{ $t('indicatorIde.oosNotAvailable') }}
+                              </div>
                             </div>
                           </div>
                           <div class="experiment-best-actions">
-                            <a-button type="primary" @click="applyBestExperimentCandidate">
-                              <a-icon type="check" /> {{ $t('indicatorIde.applyBestParams') }}
+                            <a-tooltip :title="$t('indicatorIde.applyAndVerifyHint')">
+                              <a-button
+                                type="primary"
+                                :disabled="!experimentOosMeta || !experimentOosMeta.enabled"
+                                @click="runBacktestWithExperimentBest('train')">
+                                <a-icon type="check-circle" />
+                                {{ $t('indicatorIde.applyAndVerifyOnTrain') }}
+                              </a-button>
+                            </a-tooltip>
+                            <a-tooltip :title="$t('indicatorIde.applyAndRunFullHint')">
+                              <a-button @click="runBacktestWithExperimentBest('full')">
+                                <a-icon type="play-circle" />
+                                {{ $t('indicatorIde.applyAndRunOnFull') }}
+                              </a-button>
+                            </a-tooltip>
+                            <a-button @click="applyBestExperimentCandidate">
+                              <a-icon type="check" />
+                              {{ $t('indicatorIde.applyBestParams') }}
                             </a-button>
                           </div>
                         </div>
@@ -1358,6 +1480,11 @@ export default {
       slippage: 0.02,
       tradeDirection: 'long',
       enableMtf: false,
+      // Tracks whether the last finished backtest ran on the full user
+      // window ('full') or was pinned to the tuner's training window
+      // ('train'). The result banner shows this so users always know
+      // which segment they're looking at.
+      lastBacktestRangeLabel: 'full',
       // Funding rate simulation (off by default). User may enter 0.10 (=10%/yr)
       // or 10 (auto-detected as percent). Charged every fundingIntervalHours.
       fundingRateAnnual: 0,
@@ -1402,6 +1529,13 @@ export default {
       /** 'llm' | 'structured' — which run is in progress / last explicit choice for UX */
       experimentRunKind: 'llm',
       structuredTuneMethod: 'grid',
+      /** Sweep dimension keys the user has opted out of. Drives the
+       *  "Tunable Dimensions" panel and shrinks parameterSpace at submit. */
+      disabledSweepDims: [],
+      /** Populated by `buildStructuredTunePayload` when grid → DE auto-switch
+       *  fires because the parameter Cartesian product overflows the variant
+       *  budget. UI surfaces this as a non-blocking notice. */
+      lastSweepMethodAutoSwitch: null,
       experimentResult: null,
       experimentError: '',
       experimentSelectedCandidateName: '',
@@ -1617,6 +1751,117 @@ export default {
     activeTuneMethodOption () {
       return this.tuneMethodOptions.find(opt => opt.value === this.structuredTuneMethod) || null
     },
+    /**
+     * Full list of dimensions the structured tuner could sweep, with metadata
+     * for the "Tunable Dimensions" panel. Order matters: indicator @param
+     * dimensions are appended after the four built-in risk/position knobs so
+     * the UI groups them visually.
+     *
+     * Each item:
+     *   { key, label, group, source, type, defaultValue, values, enabled }
+     *
+     * Sources:
+     *   - 'risk' / 'position' / 'leverage' — built-in
+     *   - 'indicator_declared' — @param has explicit `range=` / `values=`
+     *   - 'indicator_inferred' — @param has only a default, range auto-inferred
+     */
+    experimentSweepDimensions () {
+      const dims = []
+      const disabled = new Set(this.disabledSweepDims || [])
+      // `$t` returns the key itself when a translation is missing, so a plain
+      // `$t(key) || fallback` never falls through. Use `$te` (translation
+      // exists) to detect missing keys and substitute a readable English label
+      // — this keeps the UI sane if future locales miss a string.
+      const tr = (key, fallback) => (this.$te && this.$te(key)) ? this.$t(key) : fallback
+      const fractionSeries = (ratio, fallbackValues, multipliers = [0.5, 1, 1.5], max = 1) => {
+        const raw = Number(ratio || 0)
+        if (raw <= 0) return fallbackValues
+        const values = multipliers.map(m => Math.max(0, Math.min(max, Number((raw * m).toFixed(4)))))
+        return Array.from(new Set(values)).sort((a, b) => a - b)
+      }
+      const ann = this.parseStrategyAnnotationRaw(this.currentCode || '')
+      const slR = parseFloat(ann.stopLossPct)
+      const tpR = parseFloat(ann.takeProfitPct)
+      const enR = parseFloat(ann.entryPct)
+      const stopLossValues = fractionSeries(!isNaN(slR) ? slR : 0, [0, 0.01, 0.02], [0.5, 1, 1.5], 1)
+      const takeProfitValues = fractionSeries(!isNaN(tpR) ? tpR : 0, [0.03, 0.05, 0.08], [0.75, 1, 1.25], 5)
+      let entryBase = !isNaN(enR) && enR > 0 ? enR : 1
+      if (entryBase > 1 && entryBase <= 100) entryBase = entryBase / 100
+      const entryPctValues = fractionSeries(entryBase, [0.25, 0.5, 1], [0.5, 1, 1.25], 1)
+      const leverageBase = Math.max(1, Number(this.leverage || 1))
+      const leverageValues = Array.from(new Set([
+        Math.max(1, leverageBase - 1), leverageBase, Math.min(5, leverageBase + 1)
+      ])).sort((a, b) => a - b)
+
+      const pushDim = (entry) => {
+        if (!entry.values || entry.values.length < 2) return
+        dims.push({ ...entry, enabled: !disabled.has(entry.key) })
+      }
+
+      pushDim({ key: 'strategyConfig.risk.stopLossPct', label: tr('indicatorIde.stopLossPct', 'Stop Loss (%)'), group: 'risk', source: 'risk', type: 'float', values: stopLossValues })
+      pushDim({ key: 'strategyConfig.risk.takeProfitPct', label: tr('indicatorIde.takeProfitPct', 'Take Profit (%)'), group: 'risk', source: 'risk', type: 'float', values: takeProfitValues })
+      pushDim({ key: 'strategyConfig.position.entryPct', label: tr('indicatorIde.entryPct', 'Entry (%)'), group: 'position', source: 'position', type: 'float', values: entryPctValues })
+      pushDim({ key: 'leverage', label: tr('indicatorIde.leverage', 'Leverage'), group: 'risk', source: 'leverage', type: 'int', values: leverageValues })
+
+      // P4: only sweep trailing-stop knobs when the strategy actually enables
+      // trailing — otherwise we waste candidate budget on a parameter the
+      // backtest never reads.
+      const trailingEnabled = String(ann.trailingEnabled || '').toLowerCase() === 'true'
+      if (trailingEnabled) {
+        const trailingPctBase = parseFloat(ann.trailingStopPct)
+        const activationBase = parseFloat(ann.trailingActivationPct)
+        const trailingPctValues = fractionSeries(!isNaN(trailingPctBase) ? trailingPctBase : 0, [0.005, 0.01, 0.02], [0.5, 1, 1.5], 1)
+        const activationValues = fractionSeries(!isNaN(activationBase) ? activationBase : 0, [0.003, 0.005, 0.01], [0.5, 1, 1.5], 1)
+        pushDim({ key: 'strategyConfig.risk.trailing.pct', label: tr('indicatorIde.trailingStopPct', 'Trailing Stop (%)'), group: 'risk', source: 'risk', type: 'float', values: trailingPctValues })
+        pushDim({ key: 'strategyConfig.risk.trailing.activationPct', label: tr('indicatorIde.trailingActivationPct', 'Trailing Activation (%)'), group: 'risk', source: 'risk', type: 'float', values: activationValues })
+      }
+
+      const paramMeta = this.parseIndicatorParamRanges(this.currentCode || '')
+      for (const [name, meta] of Object.entries(paramMeta)) {
+        if (!meta || !Array.isArray(meta.values) || meta.values.length < 2) continue
+        pushDim({
+          key: `indicator_params.${name}`,
+          label: name,
+          group: 'indicator',
+          source: meta.source === 'declared' ? 'indicator_declared' : 'indicator_inferred',
+          type: meta.type,
+          defaultValue: meta.defaultValue,
+          values: meta.values
+        })
+      }
+      return dims
+    },
+    experimentEnabledSweepDimensions () {
+      return this.experimentSweepDimensions.filter(d => d.enabled)
+    },
+    experimentParameterSpace () {
+      const out = {}
+      for (const d of this.experimentEnabledSweepDimensions) {
+        out[d.key] = d.values
+      }
+      return out
+    },
+    /** Cartesian product size — for the budget banner and method auto-switch
+     *  heuristic. Capped at Number.MAX_SAFE_INTEGER style overflow by clamping
+     *  to a sentinel so the UI label stays readable on absurd spaces. */
+    experimentCartesianSize () {
+      let prod = 1
+      for (const d of this.experimentEnabledSweepDimensions) {
+        prod *= d.values.length
+        if (prod > 1e12) return Infinity
+      }
+      return prod
+    },
+    /** Suggested optimiser for the current space. We only flip to DE when the
+     *  user picked grid AND the space is large enough that grid+shuffle would
+     *  miss most of the surface; random/de/tpe stay on whatever the user chose. */
+    experimentMethodAutoSuggest () {
+      const budget = 48
+      if (this.structuredTuneMethod !== 'grid') return null
+      const size = this.experimentCartesianSize
+      if (!Number.isFinite(size) || size <= budget * 10) return null
+      return { from: 'grid', to: 'de', size }
+    },
     experimentAnalyticsCandidates () {
       const list = (this.experimentResult && this.experimentResult.rankedStrategies) || []
       return list.filter(c => c && c.score && c.result)
@@ -1685,6 +1930,28 @@ export default {
         sharpeRatio: summary.sharpeRatio == null ? '--' : Number(summary.sharpeRatio || 0).toFixed(2),
         totalTrades: summary.totalTrades == null ? '--' : String(summary.totalTrades)
       }
+    },
+    experimentBestOosSummary () {
+      // The backend only attaches oosSummary for top-K when OOS validation
+      // is enabled and the holdout window was actually backtested. Returning
+      // null lets the template show a "OOS not available" placeholder
+      // instead of pretending zeros are real metrics.
+      const summary = this.experimentBest && this.experimentBest.oosSummary
+      if (!summary) return null
+      return {
+        totalReturn: summary.totalReturn == null ? '--' : this.fmtPct(summary.totalReturn),
+        maxDrawdown: summary.maxDrawdown == null ? '--' : this.fmtPct(summary.maxDrawdown),
+        sharpeRatio: summary.sharpeRatio == null ? '--' : Number(summary.sharpeRatio || 0).toFixed(2),
+        totalTrades: summary.totalTrades == null ? '--' : String(summary.totalTrades)
+      }
+    },
+    experimentBestOverfit () {
+      return !!(this.experimentBest && this.experimentBest.oosOverfit)
+    },
+    experimentBestDegradePct () {
+      const d = this.experimentBest && this.experimentBest.oosDegradation
+      if (d == null || !isFinite(d)) return '--'
+      return (Number(d) * 100).toFixed(1)
     },
     experimentFeatureMap () {
       const features = (this.experimentRegime && this.experimentRegime.features) || {}
@@ -2698,44 +2965,22 @@ export default {
     buildBacktestStrategyConfig () {
       return this.strategyConfigFromCode(this.currentCode || '')
     },
-    buildExperimentParameterSpace () {
-      const fractionSeries = (ratio, fallbackValues, multipliers = [0.5, 1, 1.5], max = 1) => {
-        const raw = Number(ratio || 0)
-        if (raw <= 0) return fallbackValues
-        const values = multipliers.map(m => Math.max(0, Math.min(max, Number((raw * m).toFixed(4)))))
-        return Array.from(new Set(values)).sort((a, b) => a - b)
-      }
-      const ann = this.parseStrategyAnnotationRaw(this.currentCode || '')
-      const slR = parseFloat(ann.stopLossPct)
-      const tpR = parseFloat(ann.takeProfitPct)
-      const enR = parseFloat(ann.entryPct)
-      const stopLossValues = fractionSeries(!isNaN(slR) ? slR : 0, [0, 0.01, 0.02], [0.5, 1, 1.5], 1)
-      const takeProfitValues = fractionSeries(!isNaN(tpR) ? tpR : 0, [0.03, 0.05, 0.08], [0.75, 1, 1.25], 5)
-      let entryBase = !isNaN(enR) && enR > 0 ? enR : 1
-      if (entryBase > 1 && entryBase <= 100) entryBase = entryBase / 100
-      const entryPctValues = fractionSeries(entryBase, [0.25, 0.5, 1], [0.5, 1, 1.25], 1)
-      const leverageBase = Math.max(1, Number(this.leverage || 1))
-      const leverageValues = Array.from(new Set([Math.max(1, leverageBase - 1), leverageBase, Math.min(5, leverageBase + 1)])).sort((a, b) => a - b)
-
-      const space = {
-        'strategyConfig.risk.stopLossPct': stopLossValues,
-        'strategyConfig.risk.takeProfitPct': takeProfitValues,
-        'strategyConfig.position.entryPct': entryPctValues,
-        leverage: leverageValues
-      }
-
-      // Merge `@param ... range=lo:hi:step` / `values=a,b,c` declarations
-      // from the indicator source so structured tuning sweeps user-defined
-      // indicator hyperparameters alongside the built-in risk/position knobs.
-      const paramRanges = this.parseIndicatorParamRanges(this.currentCode || '')
-      for (const [name, values] of Object.entries(paramRanges)) {
-        if (Array.isArray(values) && values.length > 1) {
-          space[`indicator_params.${name}`] = values
-        }
-      }
-
-      return space
-    },
+    /**
+     * Parse `@param` declarations into sweep metadata.
+     *
+     *   { paramName: { values: number[], source: 'declared'|'inferred',
+     *                  type: 'int'|'float', defaultValue: number|null } }
+     *
+     * Resolution order per param:
+     *   1. `values=a,b,c`  → exact set         (source = 'declared')
+     *   2. `range=lo:hi:s` → arithmetic series (source = 'declared')
+     *   3. otherwise       → fractional series around the default
+     *                        produced by `autoInferParamSweep` (source = 'inferred')
+     *
+     * Step 3 is the P1 improvement: it means a plain `# @param rsi_len int 14`
+     * declaration is enough to participate in structured tuning — the user
+     * doesn't have to also remember the `range=` suffix syntax.
+     */
     parseIndicatorParamRanges (code) {
       const out = {}
       if (!code || typeof code !== 'string') return out
@@ -2748,8 +2993,12 @@ export default {
         if (!m) continue
         const name = m[1]
         const type = (m[2] || '').toLowerCase()
+        const defaultStrRaw = m[3]
         const desc = m[4] || ''
         if (type !== 'int' && type !== 'float') continue
+
+        const defNum = Number(defaultStrRaw)
+        const defaultValue = Number.isFinite(defNum) ? defNum : null
 
         const vm = valuesRe.exec(desc)
         if (vm) {
@@ -2764,7 +3013,7 @@ export default {
               if (!seen.has(v)) { seen.add(v); arr.push(v) }
             }
           }
-          if (arr.length > 1) out[name] = arr
+          if (arr.length > 1) out[name] = { values: arr, source: 'declared', type, defaultValue }
           continue
         }
         const rm = rangeRe.exec(desc)
@@ -2788,10 +3037,69 @@ export default {
             cursor += step
             if (arr.length >= maxCount) break
           }
-          if (arr.length > 1) out[name] = arr
+          if (arr.length > 1) out[name] = { values: arr, source: 'declared', type, defaultValue }
+          continue
+        }
+
+        // Auto-infer (P1): generate ~5 candidates around the default. We pick
+        // multiplicative factors instead of fixed offsets so the sweep adapts
+        // to the parameter's scale — a default of 14 produces [7,10,14,18,25],
+        // a default of 100 produces [50,75,100,125,175].
+        if (defaultValue == null) continue
+        const inferred = this.autoInferParamSweep(type, defaultValue)
+        if (inferred && inferred.length > 1) {
+          out[name] = { values: inferred, source: 'inferred', type, defaultValue }
         }
       }
       return out
+    },
+    /**
+     * Build a fractional sweep around a default value (P1 fallback for
+     * @param declarations without an explicit range=/values= clause).
+     *
+     * Factors are deliberately asymmetric — we lean a bit higher than the
+     * default (1.75x vs 0.5x) because most technical indicator parameters are
+     * lookback windows, and longer lookbacks are usually what users tune
+     * toward in trending regimes. For very small int defaults the factors
+     * collapse after rounding (e.g. default=2 → [1,2,3,4]); we return the
+     * deduplicated, sorted set so the search space stays well-formed.
+     */
+    autoInferParamSweep (type, defaultValue) {
+      const def = Number(defaultValue)
+      if (!Number.isFinite(def)) return []
+      const factors = [0.5, 0.75, 1, 1.25, 1.75]
+      if (type === 'int') {
+        const arr = factors
+          .map(f => Math.max(1, Math.round(def * f)))
+          .filter(v => Number.isFinite(v))
+        return Array.from(new Set(arr)).sort((a, b) => a - b)
+      }
+      // float
+      const arr = factors
+        .map(f => Number((def * f).toFixed(6)))
+        .filter(v => Number.isFinite(v) && v >= 0)
+      return Array.from(new Set(arr)).sort((a, b) => a - b)
+    },
+    /** Toggle whether a sweep dimension contributes to parameterSpace. */
+    toggleSweepDimension (key) {
+      const next = new Set(this.disabledSweepDims || [])
+      if (next.has(key)) next.delete(key); else next.add(key)
+      this.disabledSweepDims = Array.from(next)
+    },
+    isSweepDimDisabled (key) {
+      return (this.disabledSweepDims || []).includes(key)
+    },
+    /** Render a sweep value list with at most ~6 visible entries followed by
+     *  an ellipsis hint. We format ints natively and pin floats to 4 dp so
+     *  the panel doesn't blow up from binary fractions like 0.029999999. */
+    formatSweepValues (values) {
+      if (!Array.isArray(values) || !values.length) return ''
+      const cap = 6
+      const fmt = (v) => Number.isInteger(v) ? String(v) : Number(v).toFixed(4).replace(/\.?0+$/, '')
+      if (values.length <= cap) return values.map(fmt).join(', ')
+      const head = values.slice(0, cap - 1).map(fmt)
+      const tail = fmt(values[values.length - 1])
+      return `${head.join(', ')}, …, ${tail}`
     },
     buildExperimentBase () {
       if (!this.currentCode) return null
@@ -2828,11 +3136,18 @@ export default {
     buildStructuredTunePayload () {
       const base = this.buildExperimentBase()
       if (!base) return null
+      // P3: grid search over a giant Cartesian space degenerates to "shuffle
+      // and pick 48" which only covers a tiny fraction of the surface. When
+      // the user picked grid but the space is large, auto-flip to DE so the
+      // limited budget is spent on smart search instead of blind sampling.
+      const auto = this.experimentMethodAutoSuggest
+      const method = auto ? auto.to : this.structuredTuneMethod
+      this.lastSweepMethodAutoSwitch = auto || null
       return {
         base,
-        parameterSpace: this.buildExperimentParameterSpace(),
+        parameterSpace: this.experimentParameterSpace,
         evolution: {
-          method: this.structuredTuneMethod,
+          method,
           maxVariants: 48
         },
         includeBaseline: true
@@ -3342,11 +3657,29 @@ export default {
       if (!candidate) return
       this.experimentSelectedCandidateName = candidate.name || ''
     },
-    async runBacktestWithExperimentCandidate (candidate) {
+    async runBacktestWithExperimentCandidate (candidate, options = {}) {
       if (!candidate) return
       this.applyExperimentCandidate(candidate)
       await this.$nextTick()
-      this.runBacktest()
+      // When OOS validation is enabled, the tuner reported numbers come
+      // from the training window only. Re-running the candidate on the
+      // user's full window can look dramatically different (this is the
+      // whole point of OOS validation -- to expose overfit candidates).
+      // Default `mode` is 'train' so the headline number the user just
+      // saw can be reproduced bar-for-bar; the caller can pass 'full'
+      // to opt into "what does this look like on my full window?".
+      const meta = this.experimentOosMeta || null
+      const wantsTrain = (options.mode || 'train') === 'train'
+      let dateRangeOverride = null
+      if (wantsTrain && meta && meta.enabled && meta.trainStart && meta.trainEnd) {
+        dateRangeOverride = { start: meta.trainStart, end: meta.trainEnd, label: 'train' }
+      }
+      this.runBacktest({ dateRangeOverride })
+    },
+    runBacktestWithExperimentBest (mode = 'train') {
+      const best = this.experimentBest
+      if (!best) return
+      this.runBacktestWithExperimentCandidate(best, { mode })
     },
     handleCreateStrategyFromExperiment () {
       const candidate = this.experimentSelectedCandidate || this.experimentBest
@@ -3538,7 +3871,7 @@ export default {
     },
 
     // ===== Backtest =====
-    async runBacktest () {
+    async runBacktest (options = {}) {
       if (!this.canRunBacktest) return
       this.reconcileIdeMarketFromWatchlist()
       this.running = true
@@ -3548,6 +3881,13 @@ export default {
       this.elapsedSec = 0
       clearInterval(this.elapsedTimer)
       this.elapsedTimer = setInterval(() => { this.elapsedSec++ }, 1000)
+      // Caller can pin the window to the training segment so the candidate's
+      // headline IS metric is reproducible bar-for-bar. Without override
+      // we use the user's form dates (full window, including any 30% OOS).
+      const override = options.dateRangeOverride || null
+      const startStr = override && override.start ? override.start : this.startDate.format('YYYY-MM-DD')
+      const endStr = override && override.end ? override.end : this.endDate.format('YYYY-MM-DD')
+      this.lastBacktestRangeLabel = override && override.label ? override.label : 'full'
       try {
         const response = await request({
           url: '/api/indicator/backtest',
@@ -3559,8 +3899,8 @@ export default {
             symbol: this.symbol,
             market: this.market,
             timeframe: this.timeframe,
-            startDate: this.startDate.format('YYYY-MM-DD'),
-            endDate: this.endDate.format('YYYY-MM-DD'),
+            startDate: startStr,
+            endDate: endStr,
             initialCapital: this.initialCapital,
             commission: Number(this.commission || 0) / 100,
             slippage: Number(this.slippage || 0) / 100,
@@ -6394,6 +6734,196 @@ export default {
 .ide-tune-pill-label {
   white-space: nowrap;
 }
+.ide-tune-dimensions {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(248, 250, 252, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ide-tune-dimensions-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+.ide-tune-dimensions-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  i {
+    color: #1890ff;
+    font-size: 13px;
+  }
+}
+.ide-tune-dimensions-summary-stats {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+}
+.ide-tune-dim-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: #475569;
+}
+.ide-tune-dim-stat-cap {
+  color: #94a3b8;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.ide-tune-dim-stat-num {
+  font-weight: 700;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}
+.ide-tune-dim-stat-sep,
+.ide-tune-dim-stat-total {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+.ide-tune-dim-stat--cartesian .ide-tune-dim-stat-num {
+  color: #d46b08;
+}
+.ide-tune-dim-stat--budget .ide-tune-dim-stat-num {
+  color: #1890ff;
+}
+.ide-tune-dimensions-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 10px;
+  background: linear-gradient(90deg, rgba(250, 173, 20, 0.1), rgba(250, 173, 20, 0.04));
+  border: 1px solid rgba(250, 173, 20, 0.32);
+  border-radius: 8px;
+  color: #b45309;
+  font-size: 11px;
+  line-height: 1.5;
+  i {
+    color: #faad14;
+    margin-top: 2px;
+  }
+}
+.ide-tune-dimensions-empty {
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
+  padding: 4px 2px;
+}
+.ide-tune-dimensions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin: 0 -2px;
+}
+.ide-tune-dim-row {
+  display: grid;
+  grid-template-columns: 16px minmax(90px, 1fr) auto auto minmax(80px, 1.6fr);
+  align-items: center;
+  gap: 6px 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  font-size: 11px;
+  line-height: 1.4;
+  &:hover {
+    background: rgba(24, 144, 255, 0.06);
+  }
+  &.is-disabled {
+    opacity: 0.42;
+    .ide-tune-dim-values,
+    .ide-tune-dim-count {
+      text-decoration: line-through;
+    }
+  }
+}
+.ide-tune-dim-check {
+  margin: 0;
+  cursor: pointer;
+}
+.ide-tune-dim-label {
+  font-weight: 600;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ide-tune-dim-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ide-tune-dim-badge--risk,
+.ide-tune-dim-badge--leverage {
+  background: rgba(24, 144, 255, 0.1);
+  color: #1d4ed8;
+}
+.ide-tune-dim-badge--position {
+  background: rgba(82, 196, 26, 0.12);
+  color: #15803d;
+}
+.ide-tune-dim-badge--indicator_declared {
+  background: rgba(114, 46, 209, 0.12);
+  color: #6b21a8;
+}
+.ide-tune-dim-badge--indicator_inferred {
+  background: rgba(250, 173, 20, 0.14);
+  color: #b45309;
+}
+.ide-tune-dim-count {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ide-tune-dim-values {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 10.5px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ide-tune-dimensions-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 10.5px;
+  color: #94a3b8;
+  line-height: 1.55;
+  i {
+    margin-top: 2px;
+    color: #fbbf24;
+  }
+  code {
+    background: rgba(15, 23, 42, 0.06);
+    padding: 0 4px;
+    border-radius: 4px;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 10px;
+    color: #1e293b;
+  }
+}
 .ide-tune-method-meta {
   display: flex;
   align-items: center;
@@ -6730,6 +7260,63 @@ export default {
 }
 .experiment-best-actions {
   margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.experiment-best-card.is-overfit {
+  border-color: #ff7875;
+  box-shadow: 0 0 0 1px rgba(245, 34, 45, 0.15);
+}
+.experiment-best-dual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (max-width: 960px) {
+  .experiment-best-dual {
+    grid-template-columns: 1fr;
+  }
+}
+.experiment-best-panel {
+  background: #fafafa;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.experiment-best-panel.panel-overfit {
+  background: #fff1f0;
+  border-color: #ffa39e;
+}
+.experiment-best-panel.panel-disabled {
+  opacity: 0.7;
+}
+.experiment-best-panel .experiment-best-summary {
+  margin-top: 8px;
+}
+.experiment-best-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.experiment-best-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #595959;
+}
+.experiment-best-degrade {
+  margin-left: auto;
+  font-size: 12px;
+  color: #cf1322;
+  font-variant-numeric: tabular-nums;
+}
+.experiment-best-oos-na {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8c8c8c;
+  font-style: italic;
 }
 .experiment-candidate-card {
   padding: 12px;
@@ -7459,6 +8046,21 @@ export default {
     span { color: rgba(255,255,255,0.45); }
     strong { color: rgba(255,255,255,0.88); }
   }
+  .experiment-best-card.is-overfit {
+    border-color: #a8071a;
+    box-shadow: 0 0 0 1px rgba(245, 34, 45, 0.25);
+  }
+  .experiment-best-panel {
+    background: #141414;
+    border-color: #303030;
+  }
+  .experiment-best-panel.panel-overfit {
+    background: rgba(168, 7, 26, 0.12);
+    border-color: #a8071a;
+  }
+  .experiment-best-panel-title { color: rgba(255,255,255,0.78); }
+  .experiment-best-degrade { color: #ff7875; }
+  .experiment-best-oos-na { color: rgba(255,255,255,0.45); }
   .experiment-detail-metric,
   .experiment-component-card {
     background: #181818;
@@ -7561,6 +8163,59 @@ export default {
     box-shadow: 0 4px 14px rgba(23, 125, 220, 0.3) !important;
     &:hover:not([disabled]) {
       box-shadow: 0 6px 18px rgba(23, 125, 220, 0.45) !important;
+    }
+  }
+  .ide-tune-dimensions {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  .ide-tune-dimensions-summary-label {
+    color: rgba(255, 255, 255, 0.85);
+    i { color: #58a6ff; }
+  }
+  .ide-tune-dim-stat { color: rgba(255, 255, 255, 0.6); }
+  .ide-tune-dim-stat-cap { color: rgba(255, 255, 255, 0.4); }
+  .ide-tune-dim-stat-num { color: rgba(255, 255, 255, 0.92); }
+  .ide-tune-dim-stat-sep,
+  .ide-tune-dim-stat-total { color: rgba(255, 255, 255, 0.55); }
+  .ide-tune-dim-stat--cartesian .ide-tune-dim-stat-num { color: #ffa940; }
+  .ide-tune-dim-stat--budget .ide-tune-dim-stat-num { color: #58a6ff; }
+  .ide-tune-dimensions-warning {
+    background: linear-gradient(90deg, rgba(250, 173, 20, 0.14), rgba(250, 173, 20, 0.05));
+    border-color: rgba(250, 173, 20, 0.35);
+    color: #fbbf24;
+    i { color: #fbbf24; }
+  }
+  .ide-tune-dimensions-empty { color: rgba(255, 255, 255, 0.4); }
+  .ide-tune-dim-row {
+    &:hover { background: rgba(88, 166, 255, 0.08); }
+  }
+  .ide-tune-dim-label { color: rgba(255, 255, 255, 0.92); }
+  .ide-tune-dim-count { color: rgba(255, 255, 255, 0.55); }
+  .ide-tune-dim-values { color: rgba(255, 255, 255, 0.5); }
+  .ide-tune-dim-badge--risk,
+  .ide-tune-dim-badge--leverage {
+    background: rgba(88, 166, 255, 0.14);
+    color: #79b8ff;
+  }
+  .ide-tune-dim-badge--position {
+    background: rgba(82, 196, 26, 0.16);
+    color: #6fcf7f;
+  }
+  .ide-tune-dim-badge--indicator_declared {
+    background: rgba(179, 127, 235, 0.18);
+    color: #d3adf7;
+  }
+  .ide-tune-dim-badge--indicator_inferred {
+    background: rgba(250, 173, 20, 0.18);
+    color: #fbbf24;
+  }
+  .ide-tune-dimensions-tip {
+    color: rgba(255, 255, 255, 0.4);
+    i { color: #fbbf24; }
+    code {
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.88);
     }
   }
   .experiment-feature-card {
