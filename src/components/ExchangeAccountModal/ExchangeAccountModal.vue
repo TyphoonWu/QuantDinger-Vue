@@ -5,7 +5,6 @@
     :wrap-class-name="modalWrapClass"
     :get-container="exchangeModalGetContainer"
     :confirmLoading="savingExchange"
-    :ok-button-props="{ disabled: saveDesktopBlocked }"
     @ok="handleSaveExchange"
     @cancel="handleCancel"
     :okText="$t('common.save')"
@@ -13,14 +12,6 @@
     :maskClosable="false"
     width="520px"
   >
-    <a-alert
-      v-if="!desktopPolicyLoading && !desktopBrokersAllowed"
-      type="error"
-      show-icon
-      style="margin-bottom: 16px"
-      :message="$t('profile.exchange.desktopBrokersDisabledTitle')"
-      :description="desktopBrokersDisabledMessage || $t('profile.exchange.desktopBrokersDisabledFallback')"
-    />
     <a-form :form="exchangeForm" layout="vertical" class="exchange-account-form">
       <a-form-item :label="$t('profile.exchange.selectExchange')">
         <a-select
@@ -36,19 +27,13 @@
             </a-select-option>
           </a-select-opt-group>
           <a-select-opt-group :label="$t('profile.exchange.typeIBKR')">
-            <a-select-option value="ibkr" :disabled="desktopBrokersBlockDesktop">
+            <a-select-option value="ibkr">
               Interactive Brokers (IBKR)
-              <span v-if="desktopBrokersBlockDesktop" class="exchange-option-cloud-hint">
-                ({{ $t('profile.exchange.desktopBrokersOptionSuffix') }})
-              </span>
             </a-select-option>
           </a-select-opt-group>
           <a-select-opt-group :label="$t('profile.exchange.typeMT5')">
-            <a-select-option value="mt5" :disabled="desktopBrokersBlockDesktop">
+            <a-select-option value="mt5">
               MetaTrader 5
-              <span v-if="desktopBrokersBlockDesktop" class="exchange-option-cloud-hint">
-                ({{ $t('profile.exchange.desktopBrokersOptionSuffix') }})
-              </span>
             </a-select-option>
           </a-select-opt-group>
         </a-select>
@@ -219,7 +204,7 @@
 
 <script>
 import { mapState } from 'vuex'
-import { createExchangeCredential, getCredentialsEgressIp, getDesktopBrokersPolicy } from '@/api/credentials'
+import { createExchangeCredential, getCredentialsEgressIp } from '@/api/credentials'
 import { testExchangeConnection } from '@/api/strategy'
 
 export default {
@@ -239,9 +224,6 @@ export default {
       egressServerIpv4: '',
       egressServerIpv6: '',
       egressIpLoading: false,
-      desktopBrokersAllowed: true,
-      desktopPolicyLoading: false,
-      desktopBrokersDisabledMessage: '',
       cryptoExchangeList: [
         { id: 'binance', name: 'Binance', docsUrl: 'https://www.binance.com/en/support/faq/detail/360002502072' },
         { id: 'okx', name: 'OKX', docsUrl: 'https://www.okx.com/docs-v5/zh/#overview-v5-api-key-creation' },
@@ -284,23 +266,12 @@ export default {
     },
     selectedExchangeApiDocUrl () {
       return this.selectedCryptoExchangeMeta ? this.selectedCryptoExchangeMeta.docsUrl : ''
-    },
-    /** Server turned off IBKR/MT5 (e.g. SaaS); options disabled. */
-    desktopBrokersBlockDesktop () {
-      return !this.desktopPolicyLoading && !this.desktopBrokersAllowed
-    },
-    testingDesktopBlocked () {
-      return this.desktopBrokersBlockDesktop && (this.addExchangeType === 'ibkr' || this.addExchangeType === 'mt5')
-    },
-    saveDesktopBlocked () {
-      return this.testingDesktopBlocked
     }
   },
   watch: {
     visible (open) {
       if (open) {
         this.fetchEgressIp()
-        this.fetchDesktopBrokersPolicy()
       }
     }
   },
@@ -338,35 +309,6 @@ export default {
         mt5: 'MetaTrader 5'
       }
       return names[id] || id
-    },
-    async fetchDesktopBrokersPolicy () {
-      this.desktopPolicyLoading = true
-      this.desktopBrokersDisabledMessage = ''
-      try {
-        const res = await getDesktopBrokersPolicy()
-        if (res.code === 1 && res.data) {
-          this.desktopBrokersAllowed = !!res.data.allow_local_desktop_brokers
-          this.desktopBrokersDisabledMessage = res.data.disabled_message || ''
-        } else {
-          this.desktopBrokersAllowed = true
-        }
-      } catch (e) {
-        // Older backend without route: do not block local brokers.
-        this.desktopBrokersAllowed = true
-      } finally {
-        this.desktopPolicyLoading = false
-        this._clearDesktopBrokerSelectionIfBlocked()
-      }
-    },
-    _clearDesktopBrokerSelectionIfBlocked () {
-      if (this.desktopBrokersAllowed || !this.exchangeForm) return
-      const ex = this.exchangeForm.getFieldValue('exchange_id')
-      if (ex === 'ibkr' || ex === 'mt5') {
-        this.exchangeForm.setFieldsValue({ exchange_id: undefined })
-        this.addExchangeType = ''
-        this.selectedExchangeId = ''
-        this.exchangeTestResult = null
-      }
     },
     _validateFieldNamesForSave () {
       const f = ['exchange_id']
@@ -475,10 +417,6 @@ export default {
       const names = this._validateFieldNamesForSave()
       this.exchangeForm.validateFields(names, async (err, values) => {
         if (err) return
-        if (this.testingDesktopBlocked) {
-          this.$message.error(this.desktopBrokersDisabledMessage || this.$t('profile.exchange.desktopBrokersDisabledFallback'))
-          return
-        }
         this.savingExchange = true
         try {
           const payload = this._normalizeCredentialPayload(values)
@@ -502,10 +440,6 @@ export default {
       })
     },
     async handleTestExchangeConnection () {
-      if (this.testingDesktopBlocked) {
-        this.$message.error(this.desktopBrokersDisabledMessage || this.$t('profile.exchange.desktopBrokersDisabledFallback'))
-        return
-      }
       const names = this._validateFieldNamesForTest()
       this.exchangeForm.validateFields(names, async (err, values) => {
         if (err) return
@@ -553,13 +487,6 @@ export default {
 @exchange-dark-title: #e0e6ed;
 
 .profile-exchange-modal .exchange-account-form {
-  .exchange-option-cloud-hint {
-    margin-left: 4px;
-    font-size: 11px;
-    font-weight: normal;
-    opacity: 0.75;
-  }
-
   .egress-ip-block {
     width: 100%;
   }

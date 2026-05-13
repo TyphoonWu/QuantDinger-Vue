@@ -4,6 +4,7 @@ import storage from 'store'
 import notification from 'ant-design-vue/es/notification'
 import { VueAxios } from './axios'
 import { ACCESS_TOKEN, USER_INFO, USER_ROLES } from '@/store/mutation-types'
+import i18n from '@/locales'
 
 // PHPSESSID 存储键名
 const PHPSESSID_KEY = 'PHPSESSID'
@@ -51,14 +52,32 @@ export const AI_GENERATE_TIMEOUT = 180000 // 3 minutes for AI generation
 // Extended timeout for backtest APIs (can take several minutes)
 export const BACKTEST_TIMEOUT = 600000 // 10 minutes for backtest
 
+// Translate via i18n with a hard-coded fallback so this util works even if a
+// locale file failed to load (we never want the user to stare at a raw key).
+function tt (key, fallback) {
+  try {
+    if (i18n && typeof i18n.t === 'function') {
+      const v = i18n.t(key)
+      if (v && v !== key) return v
+    }
+  } catch (e) { /* noop */ }
+  return fallback
+}
+
 // 异常拦截处理器
 const errorHandler = (error) => {
   if (error.response) {
     const data = error.response.data
     if (error.response.status === 403) {
+      // NOTE: this notification used to be labelled "(Demo Mode) / Read-only in
+      // demo mode", which was misleading: the backend returns 403 for many
+      // distinct reasons (permission denied, IBKR/MT5 disabled by env, market
+      // not on whitelist, billing-gated route, ...). Always show the backend
+      // msg as the description so users see the real cause.
       notification.error({
-        message: '(Demo Mode)',
-        description: data.msg || data.message || 'Read-only in demo mode'
+        message: tt('request.forbiddenTitle', 'Operation not allowed'),
+        description: data.msg || data.message ||
+          tt('request.forbiddenDesc', 'You do not have permission to perform this action.')
       })
     }
     if (error.response.status === 401 && !(data.result && data.result.isLogin)) {
@@ -74,8 +93,9 @@ const errorHandler = (error) => {
         } catch (e) {}
 
         notification.error({
-          message: 'Unauthorized',
-          description: data.msg || data.message || 'Token invalid or expired, please login again.'
+          message: tt('request.unauthorizedTitle', 'Unauthorized'),
+          description: data.msg || data.message ||
+            tt('request.unauthorizedDesc', 'Token invalid or expired, please login again.')
         })
 
         // 项目使用 hash 模式，需要跳转到 /#/user/login
