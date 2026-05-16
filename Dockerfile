@@ -11,13 +11,17 @@ FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 
 # git is needed by git-revision-webpack-plugin at build time.
-RUN apk add --no-cache git
+# corepack ships with Node 16.13+; `enable` installs the pnpm shim. The
+# concrete pnpm version is pinned by `packageManager` in package.json,
+# which corepack auto-downloads on first use.
+RUN apk add --no-cache git && corepack enable
 
-COPY package*.json ./
-RUN npm install --legacy-peer-deps --no-audit --no-fund
+# Copy lockfile + manifest first so the install layer caches.
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN npm run build
+RUN pnpm build
 
 FROM ${NGINX_IMAGE}
 
