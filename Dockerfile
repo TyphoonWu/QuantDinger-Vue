@@ -1,32 +1,32 @@
-# QuantDinger Frontend Dockerfile
-# Stage 1: Build
-FROM node:18-alpine as builder
+# QuantDinger Frontend — multi-arch image published to GHCR.
+#
+# Stage 1: build the Vue 2 SPA with vue-cli.
+# Stage 2: serve the static dist via nginx, with BACKEND_URL injected at
+# container start by the official image's envsubst step.
 
+ARG NODE_IMAGE=node:18-alpine
+ARG NGINX_IMAGE=nginx:1.25-alpine
+
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
+RUN npm install --legacy-peer-deps --no-audit --no-fund
 
-# Install dependencies (prefer npm)
-RUN npm install --legacy-peer-deps
-
-# Copy source code
 COPY . .
-
-# Build production version
 RUN npm run build
 
-# Stage 2: Production image (using nginx)
-# Use specific version to avoid mirror registry issues
-FROM nginx:1.25-alpine
+FROM ${NGINX_IMAGE}
 
-# Copy build artifacts
+RUN apk add --no-cache curl
+
+# Pin the envsubst filter so only ${BACKEND_URL} is substituted — otherwise
+# nginx's own $-variables ($host, $remote_addr, ...) would also be clobbered.
+ENV NGINX_ENVSUBST_FILTER=BACKEND_URL \
+    BACKEND_URL=http://backend:5000
+
+COPY deploy/nginx-docker.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
-COPY deploy/nginx-docker.conf /etc/nginx/conf.d/default.conf
-
-# Expose port
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]
