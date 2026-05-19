@@ -31,6 +31,9 @@ export default defineConfig(({ mode }) => {
         { find: /^~(.+)/, replacement: '$1' },
         // pro-layout 1.x 仍引用 webpack 专用插件 client，用 shim 兼容
         { find: 'webpack-theme-color-replacer/client', replacement: fileURLToPath(new URL('./src/shims/webpack-theme-color-replacer-client.js', import.meta.url)) },
+        // moment 纯 CJS（module.exports = ctor），Vite 下 `import * as moment from 'moment'`
+        // namespace 拿不到 isMoment 等静态方法 → 走 shim 平铺 named exports
+        { find: /^moment$/, replacement: fileURLToPath(new URL('./src/shims/moment.js', import.meta.url)) },
         { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
         { find: '@$', replacement: fileURLToPath(new URL('./src', import.meta.url)) }
       ],
