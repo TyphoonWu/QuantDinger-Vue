@@ -286,6 +286,8 @@ const locale = {
   'trading-bot.detail.tickInterval': 'Loop Interval',
   'trading-bot.detail.restingOrdersEmpty': 'No open resting limit orders',
   'trading-bot.detail.restingOrdersStopped': 'Start the bot to see live resting orders on the exchange',
+  'trading-bot.detail.restingLongSortHint': 'Highest first (near mid)',
+  'trading-bot.detail.restingShortSortHint': 'Lowest first (near mid)',
   'trading-bot.detail.restingOrderCell': 'Cell',
   'trading-bot.detail.restingOrderPurpose': 'Purpose',
   'trading-bot.detail.restingOrderSide': 'Side',

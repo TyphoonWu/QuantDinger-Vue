@@ -272,23 +272,103 @@
         >
           <div v-if="activeTab === 'restingOrders'" class="resting-orders-panel">
             <div class="resting-orders-toolbar">
-              <a-button size="small" type="link" @click="refreshRestingOrders" :loading="restingLoading">
+              <div class="resting-orders-summary">
+                <span class="resting-summary-chip resting-summary-chip--long">
+                  <a-icon type="arrow-up" />
+                  {{ $t('trading-bot.detail.gridLong') }}
+                  <strong>{{ restingLongOrders.length }}</strong>
+                </span>
+                <span class="resting-summary-chip resting-summary-chip--short">
+                  <a-icon type="arrow-down" />
+                  {{ $t('trading-bot.detail.gridShort') }}
+                  <strong>{{ restingShortOrders.length }}</strong>
+                </span>
+                <span v-if="bot.status !== 'running'" class="resting-orders-hint">
+                  {{ $t('trading-bot.detail.restingOrdersStopped') }}
+                </span>
+              </div>
+              <a-button size="small" class="resting-orders-refresh" @click="refreshRestingOrders" :loading="restingLoading">
                 <a-icon type="reload" />
               </a-button>
-              <span v-if="bot.status !== 'running'" class="resting-orders-hint">
-                {{ $t('trading-bot.detail.restingOrdersStopped') }}
-              </span>
             </div>
-            <a-table
-              v-if="restingOrderRows.length"
-              :columns="restingOrderColumns"
-              :data-source="restingOrderRows"
-              :pagination="false"
-              size="small"
-              row-key="id"
-              :scroll="{ x: 720 }"
-            />
-            <a-empty v-else :description="$t('trading-bot.detail.restingOrdersEmpty')" />
+
+            <a-spin :spinning="restingLoading && !restingOrderRows.length">
+              <div v-if="restingOrderRows.length" class="resting-orders-book">
+                <div class="resting-book-col resting-book-col--long">
+                  <div class="resting-book-col__head">
+                    <span class="resting-book-col__title">
+                      <a-icon type="arrow-up" />
+                      {{ $t('trading-bot.detail.gridLong') }}
+                    </span>
+                    <span class="resting-book-col__hint">{{ $t('trading-bot.detail.restingLongSortHint') }}</span>
+                  </div>
+                  <div class="resting-book-col__labels">
+                    <span>{{ $t('trading-bot.detail.restingOrderCell') }}</span>
+                    <span>{{ $t('trading-bot.detail.restingOrderPrice') }}</span>
+                    <span>{{ $t('trading-bot.detail.restingOrderQty') }}</span>
+                    <span>{{ $t('trading-bot.detail.restingOrderPurpose') }}</span>
+                  </div>
+                  <div class="resting-book-col__body">
+                    <div
+                      v-for="o in restingLongOrders"
+                      :key="'rest-long-' + o.id"
+                      class="resting-book-row resting-book-row--long"
+                      :title="o.exchange_order_id"
+                    >
+                      <span class="resting-book-row__cell">#{{ o.cell_index }}</span>
+                      <span class="resting-book-row__price">{{ formatPrice(o.price) }}</span>
+                      <span class="resting-book-row__qty">{{ formatLegSize({ size: o.quantity }) }}</span>
+                      <span class="resting-book-row__purpose">{{ o.purposeLabel }}</span>
+                    </div>
+                    <div v-if="!restingLongOrders.length" class="resting-book-col__empty">—</div>
+                  </div>
+                </div>
+
+                <div class="resting-book-mid">
+                  <div class="resting-book-mid__badge">
+                    <a-icon type="aim" />
+                  </div>
+                  <div class="resting-book-mid__price">{{ formatPrice(restingRefPrice) }}</div>
+                  <div class="resting-book-mid__label">{{ $t('trading-bot.detail.gridRefPrice') }}</div>
+                  <div v-if="restingGridLower && restingGridUpper" class="resting-book-mid__range">
+                    {{ formatPrice(restingGridLower) }}
+                    <span class="resting-book-mid__range-sep">~</span>
+                    {{ formatPrice(restingGridUpper) }}
+                  </div>
+                </div>
+
+                <div class="resting-book-col resting-book-col--short">
+                  <div class="resting-book-col__head">
+                    <span class="resting-book-col__title">
+                      <a-icon type="arrow-down" />
+                      {{ $t('trading-bot.detail.gridShort') }}
+                    </span>
+                    <span class="resting-book-col__hint">{{ $t('trading-bot.detail.restingShortSortHint') }}</span>
+                  </div>
+                  <div class="resting-book-col__labels">
+                    <span>{{ $t('trading-bot.detail.restingOrderCell') }}</span>
+                    <span>{{ $t('trading-bot.detail.restingOrderPrice') }}</span>
+                    <span>{{ $t('trading-bot.detail.restingOrderQty') }}</span>
+                    <span>{{ $t('trading-bot.detail.restingOrderPurpose') }}</span>
+                  </div>
+                  <div class="resting-book-col__body">
+                    <div
+                      v-for="o in restingShortOrders"
+                      :key="'rest-short-' + o.id"
+                      class="resting-book-row resting-book-row--short"
+                      :title="o.exchange_order_id"
+                    >
+                      <span class="resting-book-row__cell">#{{ o.cell_index }}</span>
+                      <span class="resting-book-row__price">{{ formatPrice(o.price) }}</span>
+                      <span class="resting-book-row__qty">{{ formatLegSize({ size: o.quantity }) }}</span>
+                      <span class="resting-book-row__purpose">{{ o.purposeLabel }}</span>
+                    </div>
+                    <div v-if="!restingShortOrders.length" class="resting-book-col__empty">—</div>
+                  </div>
+                </div>
+              </div>
+              <a-empty v-else :description="$t('trading-bot.detail.restingOrdersEmpty')" />
+            </a-spin>
           </div>
         </a-tab-pane>
 
@@ -412,19 +492,6 @@ export default {
     }
   },
   computed: {
-    restingOrderColumns () {
-      const t = (k) => this.$t(k)
-      return [
-        { title: t('trading-bot.detail.restingOrderCell'), dataIndex: 'cell_index', width: 64 },
-        { title: t('trading-bot.detail.restingOrderPurpose'), dataIndex: 'purposeLabel' },
-        { title: t('trading-bot.detail.restingOrderSide'), dataIndex: 'side', width: 72 },
-        { title: t('trading-bot.detail.restingOrderPrice'), dataIndex: 'priceLabel' },
-        { title: t('trading-bot.detail.restingOrderQty'), dataIndex: 'qtyLabel' },
-        { title: t('trading-bot.detail.restingOrderFilled'), dataIndex: 'filledLabel' },
-        { title: t('trading-bot.detail.restingOrderStatus'), dataIndex: 'statusLabel' },
-        { title: t('trading-bot.detail.restingOrderExchangeId'), dataIndex: 'exchange_order_id', ellipsis: true }
-      ]
-    },
     restingOrderRows () {
       return (this.restingOrders || []).map(o => ({
         ...o,
@@ -434,6 +501,33 @@ export default {
         filledLabel: this.formatLegSize({ size: o.filled_quantity }),
         statusLabel: this.formatRestingStatus(o.status)
       }))
+    },
+    restingLongOrders () {
+      return this.restingOrderRows
+        .filter(o => this.restingLegSide(o) === 'long')
+        .sort((a, b) => parseFloat(b.price || 0) - parseFloat(a.price || 0))
+    },
+    restingShortOrders () {
+      return this.restingOrderRows
+        .filter(o => this.restingLegSide(o) === 'short')
+        .sort((a, b) => parseFloat(a.price || 0) - parseFloat(b.price || 0))
+    },
+    restingGridLower () {
+      return parseFloat(this.botParams.lowerPrice) || 0
+    },
+    restingGridUpper () {
+      return parseFloat(this.botParams.upperPrice) || 0
+    },
+    restingRefPrice () {
+      const fixed = parseFloat(this.botParams.referencePrice)
+      if (fixed > 0) return fixed
+      const { restingGridLower: lower, restingGridUpper: upper } = this
+      if (upper > lower) return (upper + lower) / 2
+      const rows = this.restingOrderRows
+      if (!rows.length) return 0
+      const prices = rows.map(o => parseFloat(o.price)).filter(p => p > 0)
+      if (!prices.length) return 0
+      return (Math.max(...prices) + Math.min(...prices)) / 2
     },
     tc () { return this.bot?.trading_config || {} },
     botParams () { return this.tc.bot_params || {} },
@@ -633,6 +727,14 @@ export default {
       const key = `trading-bot.detail.restingStatus.${status}`
       const t = this.$t(key)
       return t !== key ? t : String(status || '-')
+    },
+    restingLegSide (order) {
+      const ps = String(order.pos_side || order.posSide || '').toLowerCase()
+      if (ps === 'long' || ps === 'short') return ps
+      const purpose = String(order.purpose || '').toLowerCase()
+      if (purpose.includes('long')) return 'long'
+      if (purpose.includes('short')) return 'short'
+      return String(order.side || '').toLowerCase() === 'buy' ? 'long' : 'short'
     },
     startHedgePolling () {
       this.stopHedgePolling()
@@ -836,8 +938,213 @@ export default {
 /* ===================== 实时挂单 ===================== */
 .resting-orders-panel { padding: 4px 0; }
 .resting-orders-toolbar {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
-  .resting-orders-hint { font-size: 12px; color: #8c8c8c; }
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.resting-orders-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.resting-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #595959;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  strong { font-weight: 700; font-family: 'SF Mono', monospace; }
+  &--long {
+    color: #389e0d;
+    background: rgba(82, 196, 26, 0.06);
+    border-color: rgba(82, 196, 26, 0.18);
+  }
+  &--short {
+    color: #cf1322;
+    background: rgba(245, 34, 45, 0.06);
+    border-color: rgba(245, 34, 45, 0.16);
+  }
+}
+.resting-orders-hint { font-size: 12px; color: #8c8c8c; }
+.resting-orders-refresh { border-radius: 8px; flex-shrink: 0; }
+
+.resting-orders-book {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  min-height: 320px;
+}
+.resting-book-col {
+  flex: 1;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  &--long { border-color: rgba(82, 196, 26, 0.22); }
+  &--short { border-color: rgba(245, 34, 45, 0.2); }
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  }
+  &--long &__head {
+    background: rgba(82, 196, 26, 0.06);
+    border-bottom-color: rgba(82, 196, 26, 0.12);
+  }
+  &--short &__head {
+    background: rgba(245, 34, 45, 0.06);
+    border-bottom-color: rgba(245, 34, 45, 0.12);
+  }
+  &__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  &--long &__title { color: #389e0d; }
+  &--short &__title { color: #cf1322; }
+  &__hint {
+    font-size: 11px;
+    color: #8c8c8c;
+    white-space: nowrap;
+  }
+  &__labels {
+    display: grid;
+    grid-template-columns: 44px 1fr 88px minmax(0, 1.2fr);
+    gap: 8px;
+    padding: 8px 14px;
+    font-size: 11px;
+    color: #8c8c8c;
+    background: #fafafa;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  &__body {
+    flex: 1;
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+  &__empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: #bfbfbf;
+    font-size: 13px;
+  }
+}
+.resting-book-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 88px minmax(0, 1.2fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  transition: background 0.15s ease;
+  &:last-child { border-bottom: none; }
+  &:hover { background: rgba(0, 0, 0, 0.02); }
+  &__cell {
+    font-weight: 600;
+    color: #bfbfbf;
+    font-size: 11px;
+  }
+  &__price {
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  &__qty {
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    color: #595959;
+    font-size: 11px;
+  }
+  &__purpose {
+    color: #8c8c8c;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &--long &__price { color: #389e0d; }
+  &--short &__price { color: #cf1322; }
+}
+.resting-book-mid {
+  flex-shrink: 0;
+  width: 108px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 4px;
+  &__badge {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1890ff, #667eea);
+    color: #fff;
+    font-size: 16px;
+    box-shadow: 0 4px 12px rgba(24, 144, 255, 0.25);
+  }
+  &__price {
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-weight: 700;
+    font-size: 12px;
+    color: #1890ff;
+    text-align: center;
+    line-height: 1.35;
+    word-break: break-all;
+  }
+  &__label {
+    font-size: 10px;
+    color: #8c8c8c;
+    text-align: center;
+  }
+  &__range {
+    margin-top: 4px;
+    font-size: 10px;
+    color: #bfbfbf;
+    text-align: center;
+    line-height: 1.45;
+  }
+  &__range-sep { margin: 0 2px; }
+}
+
+@media (max-width: 992px) {
+  .resting-orders-book {
+    flex-direction: column;
+    min-height: 0;
+  }
+  .resting-book-mid {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(24, 144, 255, 0.04);
+    border: 1px dashed rgba(24, 144, 255, 0.18);
+  }
+  .resting-book-col__labels,
+  .resting-book-row {
+    grid-template-columns: 36px 1fr 72px minmax(0, 1fr);
+  }
 }
 
 /* ===================== Hedge summary (grid / DCA) ===================== */
@@ -1067,6 +1374,35 @@ export default {
   .param-item { background: #141414; border-color: #303030;
     .param-label { color: #8c8c8c; }
     .param-value { color: #e8e8e8; }
+  }
+  .resting-summary-chip {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: #303030;
+    color: #a6a6a6;
+    &--long { background: rgba(82, 196, 26, 0.1); border-color: rgba(82, 196, 26, 0.22); color: #73d13d; }
+    &--short { background: rgba(245, 34, 45, 0.1); border-color: rgba(245, 34, 45, 0.2); color: #ff4d4f; }
+  }
+  .resting-book-col {
+    border-color: #303030;
+    &--long { border-color: rgba(82, 196, 26, 0.22); }
+    &--short { border-color: rgba(245, 34, 45, 0.2); }
+    &__labels { background: #141414; border-bottom-color: #303030; color: #8c8c8c; }
+    &__head { border-bottom-color: rgba(255, 255, 255, 0.06); }
+    &--long &__head { background: rgba(82, 196, 26, 0.1); }
+    &--short &__head { background: rgba(245, 34, 45, 0.1); }
+  }
+  .resting-book-row {
+    border-bottom-color: rgba(255, 255, 255, 0.04);
+    &:hover { background: rgba(255, 255, 255, 0.03); }
+    &__cell { color: #595959; }
+    &__qty { color: #a6a6a6; }
+    &__purpose { color: #8c8c8c; }
+    &--long &__price { color: #73d13d; }
+    &--short &__price { color: #ff4d4f; }
+  }
+  .resting-book-mid {
+    &__price { color: #40a9ff; }
+    &__label, &__range { color: #595959; }
   }
 }
 </style>

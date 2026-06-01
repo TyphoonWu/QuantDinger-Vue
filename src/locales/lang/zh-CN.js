@@ -308,6 +308,8 @@ const locale = {
   'trading-bot.detail.tickInterval': '轮询间隔',
   'trading-bot.detail.restingOrdersEmpty': '暂无未成交的预挂限价单',
   'trading-bot.detail.restingOrdersStopped': '启动机器人后可查看交易所预挂限价单',
+  'trading-bot.detail.restingLongSortHint': '高价优先（靠近中间）',
+  'trading-bot.detail.restingShortSortHint': '低价优先（靠近中间）',
   'trading-bot.detail.restingOrderCell': '格位',
   'trading-bot.detail.restingOrderPurpose': '用途',
   'trading-bot.detail.restingOrderSide': '方向',
